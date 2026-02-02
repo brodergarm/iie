@@ -6,75 +6,89 @@ from sentence_transformers import SentenceTransformer
 from scipy.spatial.distance import cosine
 from sklearn.manifold import TSNE
 
-st.set_page_config(page_title="Intelligent Idea Engine PRO", layout="wide")
+# 1. Konfigurasjon
+st.set_page_config(page_title="AI Idea Engine PRO", layout="wide")
 
-# 1. Last "Hjernen" og initialiser minnet
+# 2. Last modellen (Hjernen)
 @st.cache_resource
-def load_engine():
-    model = SentenceTransformer('all-MiniLM-L6-v2')
-    # Start med dine eksisterende data (Source of data)
-    df = pd.read_csv("idea_sample.csv")[['OriginalText', 'Category']]
-    
-    # Generer vektorer for start-biblioteket (Computational Intelligence)
-    with st.spinner('Initialiserer semantisk minne...'):
+def load_ai_model():
+    return SentenceTransformer('all-MiniLM-L6-v2')
+
+model = load_ai_model()
+
+# 3. Initialiser Minnet (Dette gjør den smart og hindrer "abc"-feilen)
+if 'idea_db' not in st.session_state:
+    # Vi starter med en tom liste eller laster fra CSV hvis den finnes
+    try:
+        df = pd.read_csv("idea_sample.csv")[['OriginalText', 'Category']]
+        # Forhåndsberegn vektorer for start-dataene
         embeddings = model.encode(df['OriginalText'].tolist())
         df['vector'] = list(embeddings)
-    return model, df
+        st.session_state.idea_db = df
+    except:
+        st.session_state.idea_db = pd.DataFrame(columns=['OriginalText', 'Category', 'vector'])
 
-model, base_df = load_engine()
+# --- UI DESIGN ---
+st.title("🧠 Intelligent Idea Analysis Engine")
+st.write("Dette er ikke bare tekst-matching. Systemet bruker **Computational Intelligence (CI)** for å forstå meningen bak ordene.")
 
-# 2. Bruk session_state for å huske nye ideer (Simulerer database-lagring)
-if 'database' not in st.session_state:
-    st.session_state.database = base_df.copy()
-
-# --- HOVEDSIDE ---
-st.title("🚀 Intelligent Idea Analysis Engine")
-st.markdown("Dette systemet validerer originalitet ved å sammenligne innhold mot alt som tidligere er registrert.")
-
-# --- LIVE DEMO: VALIDERING ---
-st.header("🔍 Test systemets intelligens")
-user_input = st.text_input("Skriv inn en idé for å sjekke unikhet:")
+# --- MODUL 1: TEST INTELLIGENSEN ---
+st.header("🔍 Sanntids Validering")
+user_input = st.text_input("Skriv inn en idé (Test f.eks. 'abc' to ganger, eller 'flygende bil' og 'luftbårent kjøretøy'):")
 
 if user_input:
-    # Generer vektor for den nye ideen
+    # A. GJØR OM TIL MATEMATIKK (Vektorisering)
     user_vec = model.encode([user_input])[0]
     
-    # Sammenlign mot alt i "minnet" (både start-data og det du har skrevet inn før)
-    current_db = st.session_state.database
-    similarities = current_db['vector'].apply(lambda x: 1 - cosine(user_vec, x))
+    # B. SAMMENLIGN MED ALT I MINNET
+    db = st.session_state.idea_db
     
-    max_sim = similarities.max()
-    best_match_idx = similarities.idxmax()
-    best_match_text = current_db.iloc[best_match_idx]['OriginalText']
-
-    # Logikk for duplikatkontroll 
-    if max_sim > 0.99: # Nesten 100% likhet (som "abc" vs "abc")
-        st.error(f"❌ **AVVIST:** Dette er et direkte duplikat av en eksisterende idé.")
-        st.write(f"**Funnet i systemet:** '{best_match_text}'")
-    elif max_sim > 0.80: # Semantisk likhet (samme mening, ulike ord)
-        st.warning(f"⚠️ **MULIG DUPLIKAT:** En svært lignende idé eksisterer allerede.")
-        st.write(f"**Lignende konsept:** '{best_match_text}' (Likhet: {max_sim:.1%})")
+    if not db.empty:
+        # Finn likhet (Cosine Similarity)
+        similarities = db['vector'].apply(lambda x: 1 - cosine(user_vec, x))
+        max_sim = similarities.max()
+        best_match = db.iloc[similarities.idxmax()]
     else:
-        st.success(f"✅ **GODKJENT:** Ideen er unik og er nå lagret i systemets minne.")
-        # LEGG TIL I MINNET (Neste gang vil denne bli avvist som duplikat)
-        new_row = pd.DataFrame({
+        max_sim = 0
+    
+    # C. LOGIKK FOR DUPLIKAT (Mål: Reject duplicates )
+    if max_sim > 0.98: # Nesten identisk (som "abc")
+        st.error(f"❌ **AVVIST:** Dette konseptet eksisterer allerede i motoren.")
+        st.write(f"**Treff i minnet:** '{best_match['OriginalText']}' (Likhet: {max_sim:.1%})")
+    elif max_sim > 0.80: # Semantisk likt (samme mening)
+        st.warning(f"⚠️ **SEMANTISK DUPLIKAT:** Vi har allerede en idé med nesten samme betydning.")
+        st.write(f"**Lignende konsept:** '{best_match['OriginalText']}' (Likhet: {max_sim:.1%})")
+    else:
+        # GODKJENT - Lagre i minnet!
+        st.success(f"✅ **GODKJENT:** Ideen er unik og er nå lagret i minnet.")
+        new_data = pd.DataFrame({
             'OriginalText': [user_input], 
-            'Category': ['New Submission'], 
+            'Category': ['User Input'], 
             'vector': [user_vec]
         })
-        st.session_state.database = pd.concat([st.session_state.database, new_row], ignore_index=True)
+        st.session_state.idea_db = pd.concat([st.session_state.idea_db, new_data], ignore_index=True)
+        st.balloons()
 
-# --- VISUALISERING ---
+    # D. VIS "HJERNEN" (Bevis på CI)
+    with st.expander("Se teknisk analyse (Vektor-data)"):
+        st.write("Slik ser ideen din ut for AI-modellen (første 10 dimensjoner):")
+        st.code(str(user_vec[:10]))
+        st.write("Dette er den semantiske signaturen som brukes for å detektere duplikater[cite: 21, 27].")
+
+# --- MODUL 2: VISUALISERING ---
 st.divider()
-st.header("🌐 Oppdatert Semantisk Kart")
-if st.button("Oppdater kart med nye ideer"):
-    with st.spinner('Beregener nye klynger...'):
-        db = st.session_state.database
+st.header("🌐 Det Semantiske Landskapet")
+if st.button("Generer/Oppdater Interaktivt Kart"):
+    db = st.session_state.idea_db
+    if len(db) > 2:
         embeddings = np.stack(db['vector'].values)
-        tsne = TSNE(n_components=2, random_state=42, perplexity=min(30, len(db)-1))
+        # Bruker t-SNE for å klynge ideer [cite: 29]
+        tsne = TSNE(n_components=2, perplexity=min(30, len(db)-1), random_state=42)
         coords = tsne.fit_transform(embeddings)
         db['x'], db['y'] = coords[:, 0], coords[:, 1]
         
         fig = px.scatter(db, x='x', y='y', color='Category', hover_data=['OriginalText'],
-                         template="plotly_dark", title="Semantiske klynger inkludert dine bidrag")
+                         title="Idé-klynger (t-SNE)", template="plotly_dark")
         st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info("Legg inn minst 3 ideer for å generere et kart.")
