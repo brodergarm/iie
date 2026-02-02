@@ -2,3 +2,4 @@ streamlit
 sentence-transformers
 pandas
 numpy
+scipy
