@@ -4,77 +4,40 @@ from sentence_transformers import SentenceTransformer
 from scipy.spatial.distance import cosine
 import numpy as np
 
-# 1. Sideoppsett og introduksjon (Ref: Project Proposal [cite: 18, 21])
-st.set_page_config(page_title="Intelligent Idea Analysis Engine", layout="wide")
-
+# 1. Bruk nøyaktig samme modell som i SQL-scriptet ditt
 @st.cache_resource
-def load_resources():
-    # Laster AI-modellen (Computational Intelligence modellen din [cite: 27])
+def load_engine():
     model = SentenceTransformer('all-MiniLM-L6-v2')
-    try:
-        # Laster datasettet (Source of data [cite: 34])
-        df = pd.read_csv("idea_sample.csv")
-        # Konverterer tekst-vektorer tilbake til tall (numpy arrays)
-        df['vector'] = df['vector'].apply(lambda x: np.fromstring(x.strip("[]"), sep=','))
-        return model, df
-    except Exception as e:
-        return model, None
+    # Vi laster inn din "hjerne" (idea_sample.csv)
+    df = pd.read_csv("idea_sample.csv")
+    
+    # VIKTIG: Gjør om tekst-strengen i CSV-en tilbake til ekte tall
+    # Dette er ofte her det feiler og gjør den "dum"
+    df['vector'] = df['vector'].apply(lambda x: np.fromstring(x.strip("[]"), sep=','))
+    return model, df
 
-model, df_library = load_resources()
+model, df_library = load_engine()
 
-st.title("💡 Intelligent Idea Analysis Engine")
-st.markdown("""
-Dette systemet analyserer brukerinnsendte ideer for å trekke ut konsepter, kategorisere temaer og detektere duplikater basert på semantisk mening[cite: 20, 21].
-""")
-
-# --- KAPITTEL 1: VISUALISERING (Ref: Objective 5 ) ---
-st.header("📊 Semantisk Landskap")
-col1, col2 = st.columns([2, 1])
-
-with col1:
-    # Viser t-SNE visualiseringen (Ref: Objective 5 )
-    try:
-        st.image("Figure_1.png", caption="Visualisering av 100 000 ideer fordelt på 8 sektorer.")
-    except:
-        st.warning("Bildefilen 'Figure_1.png' ble ikke funnet på GitHub.")
-
-with col2:
-    st.write("### Cluster-analyse")
-    st.write("""
-    Ved bruk av **Computational Intelligence (CI)** grupperes ideer matematisk basert på innhold. 
-    Dette gjør det mulig å identifisere temaer og validere unikhet på tvers av 100 000 bidrag[cite: 27, 28].
-    """)
-
-# --- KAPITTEL 2: LIVE DEMO (Validation Feature ) ---
-st.divider()
-st.header("🚀 Prøv systemet selv")
-st.write("Skriv inn en idé for å sjekke om den er unik eller et duplikat av et eksisterende konsept.")
-
-user_input = st.text_input("Din idé:")
+# --- DIN ORIGINALE LOGIKK ---
+user_input = st.text_input("Test din idé her:")
 
 if user_input:
-    if df_library is not None:
-        # 1. Generer vektor for brukerens input
-        user_vec = model.encode([user_input])[0]
-        
-        # 2. Beregn likhet (Cosine Similarity) mot biblioteket [cite: 27, 28]
-        similarities = df_library['vector'].apply(lambda x: 1 - cosine(user_vec, x))
-        max_sim = similarities.max()
-        best_match_idx = similarities.idxmax()
-        best_match = df_library.iloc[best_match_idx]
-        
-        # 3. Logikk for duplikatkontroll 
-        if max_sim > 0.80: # Terskelverdi for duplikater
-            st.error(f"⚠️ **Duplikat oppdaget!** (Likhetsscore: {max_sim:.2%})")
-            st.write(f"**Eksisterende idé i systemet:** {best_match['OriginalText']}")
-            st.write(f"**Kategori:** {best_match['Category']}")
-        else:
-            st.success(f"✅ **Ideen er validert som unik!** (Høyeste likhet funnet: {max_sim:.2%})")
-            st.info(f"Systemet har kategorisert denne som: **{best_match['Category']}**")
-    else:
-        st.error("Kunne ikke laste database-eksempel (idea_sample.csv). Vennligst sjekk GitHub-repositoryet.")
+    # Generer vektor på nøyaktig samme måte som i SQL-motoren
+    user_vec = model.encode([user_input])[0]
+    
+    # Finn likhet (Cosine Similarity)
+    # Dette er "hjernen" som ser at "verktøy" = "utstyr"
+    similarities = df_library['vector'].apply(lambda x: 1 - cosine(user_vec, x))
+    
+    index_of_best = similarities.idxmax()
+    max_score = similarities.max()
+    best_match = df_library.iloc[index_of_best]
 
-# --- PROSJEKTINFO (Ref: Project Proposal [cite: 24, 25]) ---
-with st.expander("Om prosjektet og teknologien"):
-    st.write("Denne motoren er bygget som en komplett data-pipeline[cite: 24].")
-    st.write("Den bruker avansert tekst-preprocessing og Computational Intelligence for å sikre kvalitet i idé-databaser[cite: 25, 27].")
+    # Terskelen for å avvise duplikater (Justert for bedre presisjon)
+    if max_score > 0.82: 
+        st.error(f"⚠️ **Duplikat detektert!** Likhet: {max_score:.1%}")
+        st.info(f"Denne ligner for mye på: '{best_match['OriginalText']}'")
+    else:
+        st.success(f"✅ **Unik idé!** Høyeste likhet var bare {max_score:.1%}")
+        # Bruk kategori-logikken fra din fungerende motor
+        st.write(f"Kategorisert som: **{best_match['Category']}**")
