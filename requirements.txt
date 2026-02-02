@@ -3,3 +3,5 @@ sentence-transformers
 pandas
 numpy
 scipy
+plotly
+scikit-learn
