@@ -19,7 +19,7 @@ The system understands that these are the same idea:
 - "Plattform for å lufte bikkja" (Platform for walking the dog)
 - "App for hundelufting" (App for dog walking)
 
-Why? Because the model uses deep learning (transformer architecture) to understand meaning, not just words.
+Why? Because the model uses deep learning (transformer architecture) to understand meaning across 50+ languages, not just words.
 
 ### 2. Multilingual AI Model
 - **Model**: paraphrase-multilingual-MiniLM-L12-v2
