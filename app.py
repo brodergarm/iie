@@ -29,11 +29,8 @@ model = load_heavy_model()
 
 if 'memory' not in st.session_state:
     df = pd.read_csv("idea_sample.csv")[['OriginalText', 'Category']]
-    
-    with st.spinner('🧠 Activating deep semantic analysis...'):
-        embeddings = model.encode(df['OriginalText'].tolist())
-        df['vector'] = list(embeddings)
-    
+    embeddings = model.encode(df['OriginalText'].tolist())
+    df['vector'] = list(embeddings)
     st.session_state.memory = df
     st.session_state.new_idea_coords = None
     st.session_state.show_animation = False
@@ -121,7 +118,7 @@ def create_semantic_map(df, new_point=None, highlight_similar=None):
     
     fig.update_layout(
         title={
-            'text': '🗺️ Semantic Idea Landscape',
+            'text': 'Semantic Idea Landscape',
             'x': 0.5,
             'xanchor': 'center',
             'font': {'size': 24, 'color': 'white'}
@@ -143,19 +140,19 @@ def create_semantic_map(df, new_point=None, highlight_similar=None):
     
     return fig
 
-st.title("🧠 Intelligent Idea Analysis Engine")
+st.title("Intelligent Idea Analysis Engine")
 st.markdown("### *Semantic validation with live visualization*")
 st.markdown("---")
 
 with st.sidebar:
-    st.header("⚙️ Visualization")
+    st.header("Visualization")
     viz_method = st.selectbox("Dimensionality reduction:", ["PCA", "t-SNE"], index=0)
     
     if viz_method == "t-SNE":
         perplexity = st.slider("t-SNE Perplexity:", 5, 50, 30)
     
     st.markdown("---")
-    st.header("📊 Statistics")
+    st.header("Statistics")
     st.metric("Total number of ideas", len(st.session_state.memory))
     
     category_counts = st.session_state.memory['Category'].value_counts()
@@ -163,7 +160,7 @@ with st.sidebar:
     for cat, count in category_counts.items():
         st.write(f"• {cat}: {count}")
 
-st.header("🔍 Originality Validation")
+st.header("Originality Validation")
 
 col1, col2 = st.columns([2, 1])
 
@@ -174,7 +171,7 @@ with col1:
 with col2:
     st.write("")
     st.write("")
-    validate_button = st.button("🚀 Validate Idea", type="primary")
+    validate_button = st.button("Validate Idea", type="primary")
 
 if user_input and validate_button:
     user_vec = model.encode([user_input])[0]
@@ -191,19 +188,19 @@ if user_input and validate_button:
     
     with col_result1:
         if max_sim > 0.85:
-            st.error(f"❌ **REJECTED:** This is a direct duplicate!")
-            st.write(f"**Existing idea:** '{best_match['OriginalText']}'")
-            st.write(f"**Similarity:** {max_sim:.1%}")
+            st.error(f"REJECTED: This is a direct duplicate!")
+            st.write(f"Existing idea:'{best_match['OriginalText']}'")
+            st.write(f"Similarity: {max_sim:.1%}")
             show_viz = True
             
         elif max_sim > 0.65:
-            st.warning(f"⚠️ **SEMANTIC SIMILARITY DETECTED**")
-            st.write(f"**Conceptually similar:** '{best_match['OriginalText']}'")
-            st.write(f"**Similarity:** {max_sim:.1%}")
+            st.warning(f"SEMANTIC SIMILARITY DETECTED")
+            st.write(f"Conceptually similar: '{best_match['OriginalText']}'")
+            st.write(f"Similarity: {max_sim:.1%}")
             show_viz = True
             
         else:
-            st.success(f"✅ **APPROVED:** The idea is unique!")
+            st.success(f"APPROVED: The idea is unique!")
             
             new_row = pd.DataFrame({
                 'OriginalText': [user_input], 
@@ -216,7 +213,7 @@ if user_input and validate_button:
             st.session_state.show_animation = True
             show_viz = True
         
-        with st.expander("📊 Top 5 most similar ideas"):
+        with st.expander("Top 5 most similar ideas"):
             for idx in top_5_indices:
                 sim = similarities.iloc[idx]
                 idea = mem.iloc[idx]['OriginalText']
@@ -224,7 +221,7 @@ if user_input and validate_button:
                 st.write(f"**{sim:.1%}** - {idea} `({category})`")
     
     with col_result2:
-        st.info("**💡 How does this work?**")
+        st.info("**How does this work?**")
         st.write("""
         1. Your idea is converted to a 384-dimensional vector
         2. The vector is compared against all existing ideas
@@ -233,7 +230,7 @@ if user_input and validate_button:
         """)
 
 st.markdown("---")
-st.header("🗺️ Semantic Idea Landscape")
+st.header("Semantic Idea Landscape")
 
 new_point_coords = None
 if user_input and validate_button:
@@ -263,23 +260,23 @@ fig = create_semantic_map(st.session_state.memory,
 
 st.plotly_chart(fig, use_container_width=True)
 
-with st.expander("ℹ️ How to read the map"):
+with st.expander("How to read the map"):
     st.write("""
-    - **Each dot** represents one idea
-    - **Colors** indicate category
-    - **Proximity** means semantic similarity (ideas with the same meaning are close together)
-    - **Gold star** ⭐ = Your new idea
-    - **Red rings** = Ideas similar to your new idea
-    - **Hover** over dots to see the idea text
+    - Each dotrepresents one idea
+    - Colors indicate category
+    - Proximity means semantic similarity (ideas with the same meaning are close together)
+    - Gold star ⭐ = Your new idea
+    - Red rings = Ideas similar to your new idea
+    - Hover over dots to see the idea text
     """)
 
 st.markdown("---")
-st.header("📋 Technical Documentation")
+st.header("Technical Documentation")
 
 tab1, tab2, tab3 = st.tabs(["Model", "Algorithm", "Proof of CI"])
 
 with tab1:
-    st.subheader("🤖 Sentence Transformer Model")
+    st.subheader("Sentence Transformer Model")
     st.code("""
     Model: all-MiniLM-L6-v2
     - Type: BERT-based transformer
@@ -288,7 +285,7 @@ with tab1:
     """, language="python")
 
 with tab2:
-    st.subheader("⚙️ Validation Algorithm")
+    st.subheader("Validation Algorithm")
     st.code("""
     1. Input → Embedding (384D vector)
     2. For each idea in database:
@@ -303,26 +300,26 @@ with tab2:
     """, language="python")
 
 with tab3:
-    st.subheader("✅ Computational Intelligence Proof")
+    st.subheader("Computational Intelligence Proof")
     st.write("""
     The system demonstrates **Computational Intelligence** through:
     
-    1. **Semantic Understanding**: The model understands that "dog app for walks" and 
+    1. Semantic Understanding: The model understands that "dog app for walks" and 
        "platform for walking the dog" are the same concept
     
-    2. **Adaptive Learning**: New ideas are added to memory and affect future 
+    2. Adaptive Learning New ideas are added to memory and affect future 
        comparisons
     
-    3. **Multidimensional Analysis**: 384-dimensional vector representation captures 
+    3. Multidimensional Analysis: 384-dimensional vector representation captures 
        nuanced meaning
     
-    4. **Unsupervised Learning**: t-SNE/PCA clustering without pre-labeling
+    4. Unsupervised Learning: t-SNE/PCA clustering without pre-labeling
     
-    5. **Real-time Validation**: Instant comparison against 1600+ ideas
+    5. Real-time Validation: Instant comparison against 1600+ ideas
     """)
     
     if user_input:
-        st.write("**Example from latest validation:**")
+        st.write("Example from latest validation:")
         st.json({
             "input": user_input,
             "embedding_dim": 384,
@@ -332,5 +329,5 @@ with tab3:
         })
 
 st.markdown("---")
-st.caption("💻 Christian Garmann Schjelderup | Exam Project: Intelligent Idea Analysis Engine")
-st.caption("🔬 Computational Intelligence Model: Sentence-BERT + Semantic Validation")
+st.caption("Christian Garmann Schjelderup | Exam Project: Intelligent Idea Analysis Engine")
+st.caption("Computational Intelligence Model: Sentence-BERT + Semantic Validation")
