@@ -2,102 +2,84 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 from sentence_transformers import SentenceTransformer
-from scipy.spatial.distance import cosine
 import plotly.express as px
-from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
-# App Config
-st.set_page_config(page_title="CI Idea Engine", layout="wide")
+st.set_page_config(page_title="Idea Engine v1", layout="wide")
+st.title("Idea Similarity Tool")
+
+# Quick helper for similarity - manually written to avoid extra imports
+def get_cosine_sim(v1, v2):
+    return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
 
 @st.cache_resource
 def load_model():
-    # MiniLM is fast and good for this
+    # Using MiniLM, it's fast enough for this
     return SentenceTransformer('all-MiniLM-L6-v2')
 
 model = load_model()
 
-# State Management
-if 'df' not in st.session_state:
+# Load data into session
+if 'main_df' not in st.session_state:
     df = pd.read_csv("idea_sample.csv")
-    txt = df['OriginalText'].fillna('').tolist()
-    embeddings = model.encode(txt)
-    df['vector'] = list(embeddings)
-    st.session_state.df = df
-    st.session_state.last_sim = None
+    # need to convert to list for the encoder
+    texts = df['OriginalText'].astype(str).tolist()
+    vectors = model.encode(texts)
+    df['vec'] = list(vectors)
+    st.session_state.main_df = df
 
-# UI Sidebar
-with st.sidebar:
-    st.header("Viz Settings")
-    method = st.radio("Dim Reduction:", ["PCA", "t-SNE"])
-    if method == "t-SNE":
-        perp = st.slider("Perplexity", 5, 50, 30)
+# Input section
+new_idea = st.text_input("New idea description:")
+run_check = st.button("Check Similarity")
+
+if run_check and new_idea:
+    u_vec = model.encode([new_idea])[0]
+    data = st.session_state.main_df
     
-    st.markdown("---")
-    st.write(f"Total ideas in DB: {len(st.session_state.df)}")
-
-# main Logic
-st.title("Idea Analysis & Validation")
-
-user_input = st.text_input("New Idea:", placeholder="Type your idea here...")
-btn = st.button("Validate & Analyze", type="primary")
-
-if user_input and btn:
-    u_vec = model.encode([user_input])[0]
-    df = st.session_state.df
+    # Check all existing ideas
+    scores = [get_cosine_sim(u_vec, x) for x in data['vec']]
+    top_score = max(scores)
+    best_match_idx = np.argmax(scores)
     
-    # Calculate similarity
-    sims = df['vector'].apply(lambda x: 1 - cosine(u_vec, x))
-    max_sim = sims.max()
-    match = df.iloc[sims.idxmax()]['OriginalText']
-    st.session_state.last_sim = max_sim
+    st.write(f"Match score: {top_score:.4f}")
     
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        if max_sim > 0.85:
-            st.error(f"Duplicate! Similarity: {max_sim:.2%}")
-            st.info(f"Matches: {match}")
-        elif max_sim > 0.65:
-            st.warning(f"Very similar! Similarity: {max_sim:.2%}")
-            st.write(f"Closest idea: {match}")
-        else:
-            st.success(f"Unique! Similarity: {max_sim:.2%}")
-            # Add to local memory
-            new_row = pd.DataFrame({'OriginalText': [user_input], 'Category': ['Verified'], 'vector': [u_vec]})
-            st.session_state.df = pd.concat([df, new_row], ignore_index=True)
+    if top_score > 0.75:
+        st.error("Too similar to an existing concept!")
+        st.info(f"Existing idea: {data.iloc[best_idx]['OriginalText']}")
+    else:
+        st.success("Idea seems unique.")
+        # add to memory
+        new_row = pd.DataFrame({
+            'OriginalText': [new_idea], 
+            'Category': ['User Input'], 
+            'vec': [u_vec]
+        })
+        st.session_state.main_df = pd.concat([data, new_row], ignore_index=True)
 
-    with col2:
-        with st.expander("Why this works (CI Proof)"):
-            st.write(f"1. **Transformer model** (384D vectors)")
-            st.write(f"2. **Cosine similarity** check")
-            st.write(f"3. **Unsupervised clustering** ({method})")
-            if st.session_state.last_sim:
-                st.json({"input": user_input, "score": round(max_sim, 3), "status": "Checked"})
+# Viz part - sticking with t-SNE
+st.markdown("---")
+st.subheader("Semantic Map")
 
-# The Map
-st.header("Semantic Landscape")
-all_vecs = np.stack(st.session_state.df['vector'].values)
+current_df = st.session_state.main_df
+all_vecs = np.array(current_df['vec'].tolist())
 
-if method == "PCA":
-    coords = PCA(n_components=2).fit_transform(all_vecs)
-else:
-    coords = TSNE(n_components=2, perplexity=perp, random_state=42).fit_transform(all_vecs)
+# t-SNE logic
+tsne = TSNE(n_components=2, perplexity=20, random_state=1)
+coords = tsne.fit_transform(all_vecs)
 
-plot_df = st.session_state.df.copy()
-plot_df['x'], plot_df['y'] = coords[:, 0], coords[:, 1]
+plot_df = current_df.copy()
+plot_df['x'] = coords[:, 0]
+plot_df['y'] = coords[:, 1]
 
-fig = px.scatter(plot_df, x='x', y='y', color='Category', 
-                 hover_data=['OriginalText'], template="plotly_dark",
-                 height=600, title=f"Mapped with {method}")
+# Using standard Plotly Express
+fig = px.scatter(
+    plot_df, x='x', y='y', 
+    color='Category', 
+    hover_name='OriginalText',
+    template="plotly_dark"
+)
 st.plotly_chart(fig, use_container_width=True)
 
-# Instructions
-with st.expander("System Manual"):
-    st.write("""
-    - **Step 1:** Enter your idea in the text box.
-    - **Step 2:** Click 'Validate'. The system checks for semantic matches.
-    - **Step 3:** View the map. Proximity = Similarity.
-    - **Note:** If the idea is unique, it's added to the local database for future checks.
-    """)
-
+# Technical notes at the bottom
+st.markdown("---")
+st.caption("Technical Info: S-BERT embeddings (384D) | Numpy Cosine Similarity | t-SNE Projection")
