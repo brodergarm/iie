@@ -7,88 +7,96 @@ import plotly.express as px
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
-st.set_page_config(page_title="Idea Checker", layout="wide")
-
+# --- App Config ---
+st.set_page_config(page_title="CI Idea Engine", layout="wide")
 
 @st.cache_resource
 def load_model():
+    # MiniLM is fast and good for this
     return SentenceTransformer('all-MiniLM-L6-v2')
-
 
 model = load_model()
 
-# Data loading
+# --- State Management ---
 if 'df' not in st.session_state:
-    try:
-        df = pd.read_csv("idea_sample.csv")
-        # Pre-calculating embeddings to save time later
-        txt_list = df['OriginalText'].fillna('').tolist()
-        vecs = model.encode(txt_list)
-        df['vector'] = list(vecs)
-        st.session_state.df = df
-    except Exception as e:
-        st.error(f"Could not load csv: {e}")
-        st.stop()
+    df = pd.read_csv("idea_sample.csv")
+    txt = df['OriginalText'].fillna('').tolist()
+    embeddings = model.encode(txt)
+    df['vector'] = list(embeddings)
+    st.session_state.df = df
+    st.session_state.last_sim = None
 
-st.title("Idea Similarity Engine")
-
-# Sidebar for settings
+# --- UI Sidebar ---
 with st.sidebar:
-    st.header("Settings")
-    method = st.radio("Reduction method:", ["PCA", "t-SNE"])
-    threshold = st.slider("Similarity limit", 0.0, 1.0, 0.75)
+    st.header("Viz Settings")
+    method = st.radio("Dim Reduction:", ["PCA", "t-SNE"])
     if method == "t-SNE":
-        perp = st.slider("Perplexity", 5, 50, 25)
+        perp = st.slider("Perplexity", 5, 50, 30)
+    
+    st.markdown("---")
+    st.write(f"Total ideas in DB: {len(st.session_state.df)}")
 
-# Input area
-user_input = st.text_area("Write your idea here:", height=100)
+# --- Main Logic ---
+st.title("Idea Analysis & Validation")
 
-if st.button("Check Originality", type="primary") and user_input:
+user_input = st.text_input("New Idea:", placeholder="Type your idea here...")
+btn = st.button("Validate & Analyze", type="primary")
+
+if user_input and btn:
     u_vec = model.encode([user_input])[0]
     df = st.session_state.df
-
-    # Simple cosine similarity loop
+    
+    # Calculate similarity
     sims = df['vector'].apply(lambda x: 1 - cosine(u_vec, x))
     max_sim = sims.max()
-    best_idx = sims.idxmax()
+    match = df.iloc[sims.idxmax()]['OriginalText']
+    st.session_state.last_sim = max_sim
+    
+    col1, col2 = st.columns(2)
+    
+    with col1:
+        if max_sim > 0.85:
+            st.error(f"Duplicate! Similarity: {max_sim:.2%}")
+            st.info(f"Matches: {match}")
+        elif max_sim > 0.65:
+            st.warning(f"Very similar! Similarity: {max_sim:.2%}")
+            st.write(f"Closest idea: {match}")
+        else:
+            st.success(f"Unique! Similarity: {max_sim:.2%}")
+            # Add to local memory
+            new_row = pd.DataFrame({'OriginalText': [user_input], 'Category': ['Verified'], 'vector': [u_vec]})
+            st.session_state.df = pd.concat([df, new_row], ignore_index=True)
 
-    st.markdown("---")
-    if max_sim > threshold:
-        st.error(f"Found match! Similarity: {max_sim:.3f}")
-        st.info(f"Existing idea: {df.iloc[best_idx]['OriginalText']}")
-    else:
-        st.success(f"Looks good! Similarity: {max_sim:.3f}")
-        # Add new idea to memory
-        new_row = pd.DataFrame({
-            'OriginalText': [user_input],
-            'Category': ['Verified'],
-            'vector': [u_vec]
-        })
-        st.session_state.df = pd.concat([df, new_row], ignore_index=True)
+    with col2:
+        with st.expander("Why this works (CI Proof)"):
+            st.write(f"1. **Transformer model** (384D vectors)")
+            st.write(f"2. **Cosine similarity** check")
+            st.write(f"3. **Unsupervised clustering** ({method})")
+            if st.session_state.last_sim:
+                st.json({"input": user_input, "score": round(max_sim, 3), "status": "Checked"})
 
-# Visualization
-st.subheader(f"Semantic Map ({method})")
+# --- The Map ---
+st.header("Semantic Landscape")
+all_vecs = np.stack(st.session_state.df['vector'].values)
 
-if not st.session_state.df.empty:
-    all_vectors = np.stack(st.session_state.df['vector'].values)
+if method == "PCA":
+    coords = PCA(n_components=2).fit_transform(all_vecs)
+else:
+    coords = TSNE(n_components=2, perplexity=perp, random_state=42).fit_transform(all_vecs)
 
-    if method == "PCA":
-        red = PCA(n_components=2)
-        coords = red.fit_transform(all_vectors)
-    else:
-        # t-SNE is slower, but looks better
-        red = TSNE(n_components=2, perplexity=perp, random_state=1)
-        coords = red.fit_transform(all_vectors)
+plot_df = st.session_state.df.copy()
+plot_df['x'], plot_df['y'] = coords[:, 0], coords[:, 1]
 
-    plot_df = st.session_state.df.copy()
-    plot_df['x'] = coords[:, 0]
-    plot_df['y'] = coords[:, 1]
+fig = px.scatter(plot_df, x='x', y='y', color='Category', 
+                 hover_data=['OriginalText'], template="plotly_dark",
+                 height=600, title=f"Mapped with {method}")
+st.plotly_chart(fig, use_container_width=True)
 
-    fig = px.scatter(
-        plot_df, x='x', y='y',
-        color='Category',
-        hover_data=['OriginalText'],
-        template="plotly_dark",
-        title=f"Distribution using {method}"
-    )
-    st.plotly_chart(fig, use_container_width=True)
+# --- Instructions ---
+with st.expander("System Manual"):
+    st.write("""
+    - **Step 1:** Enter your idea in the text box.
+    - **Step 2:** Click 'Validate'. The system checks for semantic matches.
+    - **Step 3:** View the map. Proximity = Similarity.
+    - **Note:** If the idea is unique, it's added to the local database for future checks.
+    """)
