@@ -1,77 +1,87 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
+
+# simple title
+st.title("Idea Similarity Engine")
+
+# Lazy loading the model only when we actually need it
 from sentence_transformers import SentenceTransformer
-import plotly.express as px
-from sklearn.decomposition import PCA
-from sklearn.manifold import TSNE
-
-st.set_page_config(page_title="Idea Engine", layout="wide")
-
-# -- Logic & Model --
 @st.cache_resource
-def load_engine():
+def load_model():
+    print("loading bert model...") # check console
     return SentenceTransformer('all-MiniLM-L6-v2')
 
-model = load_engine()
+model = load_model()
 
-def get_sim(v1, v2):
-    return np.dot(v1, v2) / (np.linalg.norm(v1) * np.linalg.norm(v2))
-
-if 'db' not in st.session_state:
+# load data
+if 'df' not in st.session_state:
+    # hope the file is in the same folder...
     df = pd.read_csv("idea_sample.csv")
-    vectors = model.encode(df['OriginalText'].astype(str).tolist())
-    df['vec'] = list(vectors)
-    st.session_state.db = df
+    # need to encode everything once 
+    vals = df['OriginalText'].tolist()
+    vecs = model.encode(vals)
+    df['vec'] = list(vecs)
+    st.session_state.df = df
 
-# -- UI --
-st.title("Semantic Idea Analysis")
+# side stuff
+st.sidebar.write("### Settings")
+mode = st.sidebar.selectbox("View mode:", ["t-SNE", "PCA"])
+st.sidebar.text("Btw: Close dots = similar ideas.")
 
-with st.sidebar:
-    st.header("Controls")
-    viz_type = st.radio("Projection Method:", ["t-SNE", "PCA"])
-    st.markdown("---")
-    st.write("**How to read the map:**")
-    st.caption("Dots represent ideas. Proximity = Semantic similarity. Clusters show groups of related concepts.")
+# The check
+idea_input = st.text_input("Type your idea here (test it against the database):")
 
-# Input
-user_idea = st.text_input("Test your idea here:")
-if st.button("Analyze") and user_idea:
-    u_vec = model.encode([user_idea])[0]
-    db = st.session_state.db
+if st.button("Check it") and idea_input:
+    # get vector for new input
+    u_vec = model.encode([idea_input])[0]
+    curr_data = st.session_state.df
     
-    scores = [get_sim(u_vec, x) for x in db['vec']]
-    max_score = max(scores)
+    # manual similarity calc because i dont want to import scipy
+    all_v = np.stack(curr_data['vec'].values)
+    # math: dot product / (norm * norm)
+    sims = np.dot(all_v, u_vec) / (np.linalg.norm(all_v, axis=1) * np.linalg.norm(u_vec))
     
-    if max_score > 0.75:
-        st.error(f"Red flag: High similarity ({max_score:.3f})")
-        st.write(f"Match: {db.iloc[np.argmax(scores)]['OriginalText']}")
+    score = np.max(sims)
+    idx = np.argmax(sims)
+    
+    st.write(f"Match score: {round(float(score), 4)}")
+    
+    if score > 0.8:
+        st.error("Too similar! This idea already exists.")
+        st.info(f"Existing: {curr_data.iloc[idx]['OriginalText']}")
+    elif score > 0.6:
+        st.warning("Kind of similar. Maybe tweak it a bit?")
     else:
-        st.success(f"Unique idea (Score: {max_score:.3f})")
-        new_row = pd.DataFrame({'OriginalText': [user_idea], 'Category': ['New'], 'vec': [u_vec]})
-        st.session_state.db = pd.concat([db, new_row], ignore_index=True)
+        st.success("Unique idea! Added to local list.")
+        # just append it
+        new_item = pd.DataFrame({'OriginalText': [idea_input], 'Category': ['New Idea'], 'vec': [u_vec]})
+        st.session_state.df = pd.concat([curr_data, new_item], ignore_index=True)
 
-# -- Mapping --
-st.subheader(f"Semantic Landscape ({viz_type})")
-all_vecs = np.array(st.session_state.db['vec'].tolist())
+st.write("---")
 
-if viz_type == "t-SNE":
-    reducer = TSNE(n_components=2, perplexity=20, random_state=42)
+# Viz section - importing here because its only used for the plot
+import plotly.express as px
+
+d_viz = st.session_state.df
+v_matrix = np.stack(d_viz['vec'].values)
+
+if mode == "t-SNE":
+    from sklearn.manifold import TSNE
+    # lowering perplexity so it doesnt crash on small datasets
+    res = TSNE(n_components=2, perplexity=10).fit_transform(v_matrix)
 else:
-    reducer = PCA(n_components=2)
+    from sklearn.decomposition import PCA
+    res = PCA(n_components=2).fit_transform(v_matrix)
 
-coords = reducer.fit_transform(all_vecs)
-plot_df = st.session_state.db.copy()
-plot_df['x'], plot_df['y'] = coords[:, 0], coords[:, 1]
+d_viz['x'] = res[:, 0]
+d_viz['y'] = res[:, 1]
 
-fig = px.scatter(plot_df, x='x', y='y', color='Category', hover_name='OriginalText', template="plotly_dark")
-st.plotly_chart(fig, use_container_width=True)
+# basic scatter plot
+fig = px.scatter(d_viz, x='x', y='y', color='Category', hover_data=['OriginalText'])
+st.plotly_chart(fig)
 
-# -- Brief Technical Proof --
-with st.expander("Technical Background"):
-    st.write("""
-    **Why this works:**
-    The system uses a Transformer-based model (S-BERT) to map text into a 384-dimensional space. 
-    By calculating the angle between vectors (Cosine Similarity), we identify conceptual duplicates 
-    even if the wording is different. t-SNE/PCA then projects these dimensions down to 2D for visualization.
-    """)
+# quick proof for the exam/teacher
+with st.expander("Technical stuff (how it works)"):
+    st.write("Using S-BERT (MiniLM) for embeddings. Similarity is just cosine distance between vectors. "
+             "The map uses t-SNE or PCA to show the clusters.")
