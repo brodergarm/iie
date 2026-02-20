@@ -7,7 +7,7 @@ import plotly.express as px
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 
-# --- App Config ---
+# App Config
 st.set_page_config(page_title="CI Idea Engine", layout="wide")
 
 @st.cache_resource
@@ -17,7 +17,7 @@ def load_model():
 
 model = load_model()
 
-# --- State Management ---
+# State Management
 if 'df' not in st.session_state:
     df = pd.read_csv("idea_sample.csv")
     txt = df['OriginalText'].fillna('').tolist()
@@ -26,7 +26,7 @@ if 'df' not in st.session_state:
     st.session_state.df = df
     st.session_state.last_sim = None
 
-# --- UI Sidebar ---
+# UI Sidebar
 with st.sidebar:
     st.header("Viz Settings")
     method = st.radio("Dim Reduction:", ["PCA", "t-SNE"])
@@ -36,7 +36,7 @@ with st.sidebar:
     st.markdown("---")
     st.write(f"Total ideas in DB: {len(st.session_state.df)}")
 
-# --- Main Logic ---
+# main Logic
 st.title("Idea Analysis & Validation")
 
 user_input = st.text_input("New Idea:", placeholder="Type your idea here...")
@@ -75,7 +75,7 @@ if user_input and btn:
             if st.session_state.last_sim:
                 st.json({"input": user_input, "score": round(max_sim, 3), "status": "Checked"})
 
-# --- The Map ---
+# The Map
 st.header("Semantic Landscape")
 all_vecs = np.stack(st.session_state.df['vector'].values)
 
@@ -92,7 +92,7 @@ fig = px.scatter(plot_df, x='x', y='y', color='Category',
                  height=600, title=f"Mapped with {method}")
 st.plotly_chart(fig, use_container_width=True)
 
-# --- Instructions ---
+# Instructions
 with st.expander("System Manual"):
     st.write("""
     - **Step 1:** Enter your idea in the text box.
@@ -100,3 +100,4 @@ with st.expander("System Manual"):
     - **Step 3:** View the map. Proximity = Similarity.
     - **Note:** If the idea is unique, it's added to the local database for future checks.
     """)
+
