@@ -75,7 +75,9 @@ d_viz['y'] = res[:, 1]
 fig = px.scatter(d_viz, x='x', y='y', color='Category', hover_data=['OriginalText'])
 st.plotly_chart(fig)
 
-with st.expander("Technical stuff (how it works)"):
-    st.write("Using S-BERT (MiniLM) for embeddings. Similarity is just cosine distance between vectors. "
-             "The map uses t-SNE or PCA to show the clusters.")
+with st.expander("Hoe it works)"):
+    st.write("Uses S-BERT (MiniLM) to generate semantic embeddings for each entry. "
+"Similarity is computed as cosine distance between embedding vectors. "
+"The map visualizes clusters using t-SNE or PCA dimensionality reduction.")
+
 
