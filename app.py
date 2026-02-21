@@ -35,10 +35,9 @@ if st.button("Check it") and idea_input:
     u_vec = model.encode([idea_input])[0]
     curr_data = st.session_state.df
 
-    from scipy.spatial.distance import cosine
-
     all_v = np.stack(curr_data['vec'].values)
-    sims = [1 - cosine(v, u_vec) for v in all_v]
+
+    sims = np.dot(all_v, u_vec) / (np.linalg.norm(all_v, axis=1) * np.linalg.norm(u_vec))
 
     score = np.max(sims)
     idx = np.argmax(sims)
