@@ -44,10 +44,10 @@ if st.button("Check it") and idea_input:
 
     st.write(f"Match score: {round(float(score), 4)}")
 
-    if score > 0.85:
+    if score > 0.80:
         st.error("Too similar! This idea already exists.")
         st.info(f"Existing: {curr_data.iloc[idx]['OriginalText']}")
-    elif score > 0.65:
+    elif score > 0.60:
         st.warning("Kind of similar")
         st.info(f"Similar to: {curr_data.iloc[idx]['OriginalText']}")
     else:
@@ -83,6 +83,7 @@ with st.expander("How it works"):
     st.write("Uses S-BERT (MiniLM) to generate semantic embeddings for each entry. "
              "Similarity is computed as cosine distance between embedding vectors. "
              "The map visualizes clusters using t-SNE or PCA dimensionality reduction.")
+
 
 
 
