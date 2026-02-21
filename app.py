@@ -49,6 +49,7 @@ if st.button("Check it") and idea_input:
         st.info(f"Existing: {curr_data.iloc[idx]['OriginalText']}")
     elif score > 0.65:
         st.warning("Kind of similar")
+        st.info(f"Similar to: {curr_data.iloc[idx]['OriginalText']}")
     else:
         st.success("Unique idea! Added to database.")
         new_item = pd.DataFrame({'OriginalText': [idea_input], 'Category': ['New Idea'], 'vec': [u_vec]})
@@ -82,5 +83,6 @@ with st.expander("How it works"):
     st.write("Uses S-BERT (MiniLM) to generate semantic embeddings for each entry. "
              "Similarity is computed as cosine distance between embedding vectors. "
              "The map visualizes clusters using t-SNE or PCA dimensionality reduction.")
+
 
 
