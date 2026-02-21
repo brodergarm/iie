@@ -9,7 +9,7 @@ from sentence_transformers import SentenceTransformer
 
 @st.cache_resource
 def load_model():
-    print("loading bert model...")  # check console
+    print("loading bert model...")
     return SentenceTransformer('all-MiniLM-L6-v2')
 
 
@@ -83,6 +83,7 @@ with st.expander("How it works"):
     st.write("Uses S-BERT (MiniLM) to generate semantic embeddings for each entry. "
              "Similarity is computed as cosine distance between embedding vectors. "
              "The map visualizes clusters using t-SNE or PCA dimensionality reduction.")
+
 
 
 
